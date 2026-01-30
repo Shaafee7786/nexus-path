@@ -17,6 +17,7 @@ def extract_text_from_pdf(file):
 def extract_text_from_epub(file):
     with open("temp.epub", "wb") as f:
         f.write(file.getbuffer())
+    # Silence ebooklib warnings
     book = epub.read_epub("temp.epub")
     text = ""
     for item in book.get_items_of_type(ebooklib.ITEM_DOCUMENT):
@@ -36,15 +37,12 @@ def generate_gemini_response(content, language, api_key):
     Using the provided book text, generate a response in {language}.
     
     1. INSTRUCTIVE SUMMARY: Summarize the core philosophy and the 'Big Ideas'.
-    2. LIFE ACTION PLAN: Provide a specific, step-by-step 30-day plan to implement the book's 
-       teachings into daily life.
+    2. LIFE ACTION PLAN: Provide a specific, step-by-step 30-day plan to implement the book's teachings into daily life.
     3. DAILY HABITS: Suggest 3 small habits to start today.
 
     Text to analyze:
-    {content[:30000]} 
+    {content[:50000]} 
     """
-    # Note: Gemini 1.5 Flash can handle up to 1 million tokens, 
-    # but we limit it here for speed.
     
     response = model.generate_content(prompt)
     return response.text
@@ -66,6 +64,32 @@ with st.sidebar:
     st.divider()
     st.info("Gemini 1.5 Flash is free and supports very long books.")
 
+# File uploader
 uploaded_files = st.file_uploader("Upload PDF or EPUB", type=["pdf", "epub"], accept_multiple_files=True)
 
-if upl
+# Processing logic
+if uploaded_files:
+    combined_text = ""
+    for f in uploaded_files:
+        if f.type == "application/pdf":
+            combined_text += extract_text_from_pdf(f)
+        else:
+            combined_text += extract_text_from_epub(f)
+    
+    st.success(f"Successfully read {len(uploaded_files)} book(s).")
+    
+    if st.button("Build My Life Plan"):
+        if not gemini_key:
+            st.error("Please paste your Google Gemini Key in the sidebar!")
+        else:
+            with st.spinner("Gemini is reading your books..."):
+                try:
+                    # Limit content to roughly 50k characters to stay within free limits easily
+                    result = generate_gemini_response(combined_text, output_lang, gemini_key)
+                    st.markdown("---")
+                    st.markdown(result)
+                    st.download_button("Download Plan", result, file_name="my_action_plan.txt")
+                except Exception as e:
+                    st.error(f"Error: {e}")
+else:
+    st.info("Upload a book to get started.")
