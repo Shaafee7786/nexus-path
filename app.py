@@ -30,22 +30,33 @@ def extract_text_from_epub(file):
 def generate_gemini_response(content, language, api_key):
     # Setup Gemini
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-1.5-flash')
     
-    prompt = f"""
-    You are a professional Life Architect and Master Educator. 
-    Using the provided book text, generate a response in {language}.
-    
-    1. INSTRUCTIVE SUMMARY: Summarize the core philosophy and the 'Big Ideas'.
-    2. LIFE ACTION PLAN: Provide a specific, step-by-step 30-day plan to implement the book's teachings into daily life.
-    3. DAILY HABITS: Suggest 3 small habits to start today.
+    # We use 'gemini-1.5-flash' which is the standard identifier
+    # If that fails, the error might be regional, but this is the most compatible name
+    try:
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        prompt = f"""
+        You are a professional Life Architect. 
+        Analyze this book text and provide the following in {language}:
+        1. SUMMARY: Key philosophy and big ideas.
+        2. ACTION PLAN: A 30-day implementation roadmap.
+        3. HABITS: 3 specific daily habits.
 
-    Text to analyze:
-    {content[:50000]} 
-    """
-    
-    response = model.generate_content(prompt)
-    return response.text
+        Text:
+        {content[:40000]} 
+        """
+        
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        # Fallback to the older stable model if 1.5 is having a version issue
+        if "404" in str(e):
+            model = genai.GenerativeModel('gemini-pro')
+            response = model.generate_content(f"Summarize and create an action plan in {language}: {content[:20000]}")
+            return response.text
+        else:
+            raise e
 
 # --- UI SETUP ---
 
