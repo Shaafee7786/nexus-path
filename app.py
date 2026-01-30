@@ -30,25 +30,44 @@ def extract_text_from_epub(file):
 def generate_gemini_response(content, language, api_key):
     genai.configure(api_key=api_key)
     
-    # List of model names to try in order of best to most compatible
-    model_names = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']
+    # --- AUTO-DETECT AVAILABLE MODELS ---
+    available_models = []
+    try:
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                available_models.append(m.name)
+    except Exception as e:
+        return f"API Key Error: Could not list models. Check if your key is correct. (Error: {e})"
+
+    if not available_models:
+        return "No compatible models found for this API key."
+
+    # --- PICK THE BEST MODEL ---
+    # We look for 1.5-flash first, then 1.5-pro, then 1.0-pro
+    selected_model = None
+    priority = ['models/gemini-1.5-flash', 'models/gemini-1.5-pro', 'models/gemini-pro']
     
-    last_error = ""
+    for p in priority:
+        if p in available_models:
+            selected_model = p
+            break
     
-    for name in model_names:
-        try:
-            model = genai.GenerativeModel(name)
-            prompt = f"""
-            Summarize this book and create a 30-day life action plan in {language}:
-            {content[:30000]}
-            """
-            response = model.generate_content(prompt)
-            return response.text
-        except Exception as e:
-            last_error = str(e)
-            continue # Try the next model in the list
-            
-    return f"Could not connect to any Gemini models. Error: {last_error}"
+    if not selected_model:
+        selected_model = available_models[0] # Just use whatever is available
+
+    # --- RUN THE ANALYSIS ---
+    try:
+        model = genai.GenerativeModel(selected_model)
+        prompt = f"""
+        You are a Life Architect. Based on the following text, 
+        generate a summary and a 30-day life action plan in {language}:
+        
+        {content[:40000]}
+        """
+        response = model.generate_content(prompt)
+        return f"(Using model: {selected_model})\n\n{response.text}"
+    except Exception as e:
+        return f"Failed to generate content with {selected_model}. Error: {e}"
 
 # --- UI SETUP ---
 
