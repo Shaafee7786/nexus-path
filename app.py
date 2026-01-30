@@ -28,35 +28,27 @@ def extract_text_from_epub(file):
 # --- GEMINI AI LOGIC ---
 
 def generate_gemini_response(content, language, api_key):
-    # Setup Gemini
     genai.configure(api_key=api_key)
     
-    # We use 'gemini-1.5-flash' which is the standard identifier
-    # If that fails, the error might be regional, but this is the most compatible name
-    try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        
-        prompt = f"""
-        You are a professional Life Architect. 
-        Analyze this book text and provide the following in {language}:
-        1. SUMMARY: Key philosophy and big ideas.
-        2. ACTION PLAN: A 30-day implementation roadmap.
-        3. HABITS: 3 specific daily habits.
-
-        Text:
-        {content[:40000]} 
-        """
-        
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        # Fallback to the older stable model if 1.5 is having a version issue
-        if "404" in str(e):
-            model = genai.GenerativeModel('gemini-pro')
-            response = model.generate_content(f"Summarize and create an action plan in {language}: {content[:20000]}")
+    # List of model names to try in order of best to most compatible
+    model_names = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']
+    
+    last_error = ""
+    
+    for name in model_names:
+        try:
+            model = genai.GenerativeModel(name)
+            prompt = f"""
+            Summarize this book and create a 30-day life action plan in {language}:
+            {content[:30000]}
+            """
+            response = model.generate_content(prompt)
             return response.text
-        else:
-            raise e
+        except Exception as e:
+            last_error = str(e)
+            continue # Try the next model in the list
+            
+    return f"Could not connect to any Gemini models. Error: {last_error}"
 
 # --- UI SETUP ---
 
