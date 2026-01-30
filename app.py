@@ -30,44 +30,47 @@ def extract_text_from_epub(file):
 def generate_gemini_response(content, language, api_key):
     genai.configure(api_key=api_key)
     
-    # --- AUTO-DETECT AVAILABLE MODELS ---
+    # 1. Detect Models (Keeping your working auto-detect logic)
     available_models = []
     try:
         for m in genai.list_models():
             if 'generateContent' in m.supported_generation_methods:
                 available_models.append(m.name)
     except Exception as e:
-        return f"API Key Error: Could not list models. Check if your key is correct. (Error: {e})"
+        return f"API Key Error: {e}"
 
-    if not available_models:
-        return "No compatible models found for this API key."
+    # Priority: Flash 1.5 is best for multi-book synthesis
+    selected_model = 'models/gemini-1.5-flash' if 'models/gemini-1.5-flash' in available_models else available_models[0]
 
-    # --- PICK THE BEST MODEL ---
-    # We look for 1.5-flash first, then 1.5-pro, then 1.0-pro
-    selected_model = None
-    priority = ['models/gemini-1.5-flash', 'models/gemini-1.5-pro', 'models/gemini-pro']
-    
-    for p in priority:
-        if p in available_models:
-            selected_model = p
-            break
-    
-    if not selected_model:
-        selected_model = available_models[0] # Just use whatever is available
-
-    # --- RUN THE ANALYSIS ---
     try:
         model = genai.GenerativeModel(selected_model)
-        prompt = f"""
-        You are a Life Architect. Based on the following text, 
-        generate a summary and a 30-day life action plan in {language}:
         
-        {content[:40000]}
+        # 2. UPDATED PROMPT: Specifically asking for Synthesis
+        prompt = f"""
+        You are a Master Life Strategist. I have uploaded text from MULTIPLE books. 
+        Please synthesize the teachings from ALL these books into one cohesive system.
+        
+        OUTPUT LANGUAGE: {language}
+
+        REQUIRED SECTIONS:
+        1. INTEGRATED SUMMARY: What are the overlapping 'Big Ideas' between these books?
+        2. CONFLICT RESOLUTION: If the books give different advice, provide a balanced 'middle way'.
+        3. MASTER ACTION PLAN: A unified 30-day plan that combines techniques from all books.
+        4. COMBINED HABIT STACK: 5 daily habits that utilize concepts from every book provided.
+
+        TEXT CONTENT FROM ALL BOOKS:
+        ---
+        {content[:800000]} 
+        ---
         """
+        # I increased the limit from 40k to 800k characters. 
+        # This is roughly 3-4 full books.
+
         response = model.generate_content(prompt)
-        return f"(Using model: {selected_model})\n\n{response.text}"
+        return f"(Analyzed using {selected_model})\n\n{response.text}"
+    
     except Exception as e:
-        return f"Failed to generate content with {selected_model}. Error: {e}"
+        return f"Synthesis Failed. Error: {e}"
 
 # --- UI SETUP ---
 
